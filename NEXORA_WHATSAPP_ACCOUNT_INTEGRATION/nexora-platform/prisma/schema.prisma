@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum TransactionType {
+  PACKAGE_PURCHASE
+  COMMISSION
+  WITHDRAWAL
+  REFUND
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  phone             String   @unique
+  passwordHash      String
+  referralCode      String   @unique
+  referredById      String?
+  referredBy        User?    @relation("ReferralTree", fields: [referredById], references: [id])
+  referrals         User[]   @relation("ReferralTree")
+  packageId         String?
+  package           Package? @relation(fields: [packageId], references: [id])
+  status            UserStatus @default(ACTIVE)
+  wallet            Wallet?
+  transactions      Transaction[]
+  commissionsEarned Commission[] @relation("CommissionReceiver")
+  commissionsFrom   Commission[] @relation("CommissionSource")
+  withdrawals       Withdrawal[]
+  supportTickets    SupportTicket[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([referredById])
+  @@index([packageId])
+}
+
+model Package {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  price            Int
+  directCommission Int
+  level2Commission Int
+  tier             Int      @default(0)
+  active           Boolean  @default(true)
+  description      String   @default("")
+  features         String[] @default([])
+  badge            String   @default("")
+  popular          Boolean  @default(false)
+  withdrawalLimit  Int      @default(0)
+  users            User[]
+  createdAt        DateTime @default(now())
+
+  @@index([active])
+}
+
+model Wallet {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Int      @default(0)
+  pendingBalance Int      @default(0)
+  totalEarned    Int      @default(0)
+  totalWithdrawn Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model Transaction {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      TransactionType
+  amount    Int
+  status    TransactionStatus @default(PENDING)
+  reference String            @unique
+  metadata  Json?
+  createdAt DateTime          @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Commission {
+  id           String   @id @default(cuid())
+  receiverId   String
+  receiver     User     @relation("CommissionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  sourceUserId String
+  sourceUser   User     @relation("CommissionSource", fields: [sourceUserId], references: [id], onDelete: Cascade)
+  level        Int
+  amount       Int
+  reference    String   @unique
+  createdAt    DateTime @default(now())
+
+  @@index([receiverId, createdAt])
+  @@index([sourceUserId])
+}
+
+model Withdrawal {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  phone     String
+  status    WithdrawalStatus @default(PENDING)
+  reference String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+model Admin {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  status       AdminStatus @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+
+model AdminActivityLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  adminEmail  String
+  action      String
+  targetType  String?
+  targetId    String?
+  targetEmail String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetEmail])
+  @@index([action])
+}
+
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String
+  status    String   @default("OPEN")
+  response  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  category  String   @default("UPDATE")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, createdAt])
+}

@@ -1,0 +1,42 @@
+NEXORA DEPLOYMENT — FINAL
+
+FRONTEND STATIC SITE
+Service: nexora_referral
+Repo: collowalker-alt/referral-web
+Branch: main
+Build: npm install --prefix client && npm run build --prefix client
+Publish: client/dist
+Environment: VITE_API_URL=https://nexora-api-shxf.onrender.com/api
+SPA rewrite: /* -> /index.html (Rewrite)
+
+BACKEND WEB SERVICE
+Service: nexora-api
+URL: https://nexora-api-shxf.onrender.com
+
+The backend startup performs additive setup for Package tier/settings, AdminActivityLog and SupportTicket. No Render Shell is required for these changes.
+
+NEW MEMBER FEATURES
+Dashboard, profile strength, referral analytics, marketing center + QR, Academy, leaderboard, monthly challenges + achievements, support tickets, payment/transaction center and security center.
+
+PACKAGE RULE
+Starter -> Starter
+Growth -> Starter + Growth
+Pro -> Starter + Growth + Pro
+Elite -> Starter + Growth + Pro + Elite
+Premium -> Starter + Growth + Pro + Elite + Premium
+
+UPGRADES
+Only higher tiers are allowed. The payment charge is the difference between target package price and current package price.
+
+NEW PLATFORM FEATURES
+- Public landing page and legal pages are served by the same SPA.
+- Installable PWA shell is enabled through manifest.webmanifest and sw.js.
+- Admin > Announcements controls the member Community & Updates feed.
+- Admin > Support tickets manages member support requests.
+- Package tier ordering is explicit and independent of price.
+
+The existing frontend service should continue using:
+Build Command: npm install --prefix client && npm run build --prefix client
+Publish Directory: client/dist
+Environment: VITE_API_URL=https://nexora-api-shxf.onrender.com/api
+SPA rewrite: /* -> /index.html
