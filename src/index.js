@@ -30,6 +30,7 @@ const OWNER_NUMBERS = new Set((process.env.BOT_OWNER_NUMBERS || '').split(',').m
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const PORT = Math.max(1, Number(process.env.PORT || 3000));
 const QR_IMAGE_FILE = path.resolve(process.env.QR_IMAGE_FILE || './data/whatsapp-qr.png');
+const QR_VIEW_KEY = (process.env.QR_VIEW_KEY || '').trim();
 const WA_KEEPALIVE_MS = Math.max(10000, Number(process.env.WA_KEEPALIVE_MS || 15000));
 const WA_CONNECT_TIMEOUT_MS = Math.max(30000, Number(process.env.WA_CONNECT_TIMEOUT_MS || 60000));
 const WA_QUERY_TIMEOUT_MS = Math.max(30000, Number(process.env.WA_QUERY_TIMEOUT_MS || 60000));
@@ -294,9 +295,41 @@ async function listGroups(sock) {
 
 function startHealthServer() {
   const server = http.createServer((req, res) => {
-    if (req.url === '/' || req.url === '/health' || req.url === '/healthz') {
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    if (url.pathname === '/' || url.pathname === '/health' || url.pathname === '/healthz') {
       res.writeHead(200, {'content-type':'application/json','cache-control':'no-store'});
       res.end(JSON.stringify({ok:true,service:'nexora-whatsapp-bot',time:new Date().toISOString()}));
+      return;
+    }
+    if (url.pathname === '/qr') {
+      if (QR_VIEW_KEY && url.searchParams.get('key') !== QR_VIEW_KEY) {
+        res.writeHead(403, {'content-type':'application/json','cache-control':'no-store'});
+        res.end(JSON.stringify({ok:false,message:'QR access denied'}));
+        return;
+      }
+      if (!fs.existsSync(QR_IMAGE_FILE)) {
+        res.writeHead(404, {'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+        res.end('<!doctype html><html><body style="font-family:system-ui;background:#07090d;color:#f4fbff;padding:32px"><h2>NEXORA WhatsApp QR</h2><p>No QR code is currently available. Check the Abasthan logs and try again.</p></body></html>');
+        return;
+      }
+      const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>NEXORA WhatsApp QR</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#07090d;color:#f4fbff;font-family:system-ui,sans-serif"><main style="width:min(92vw,560px);text-align:center;background:#111722;border:1px solid #26384d;border-radius:18px;padding:22px;box-sizing:border-box"><h2 style="margin:0 0 8px">NEXORA WhatsApp QR</h2><p style="margin:0 0 18px;color:#aebdca">Open WhatsApp → Linked devices → Link a device, then scan this QR.</p><img src="/qr-image${QR_VIEW_KEY ? `?key=${encodeURIComponent(QR_VIEW_KEY)}` : ''}" alt="WhatsApp pairing QR code" style="display:block;width:min(100%,500px);height:auto;margin:auto;background:white;border-radius:12px"><p style="font-size:13px;color:#8fa0af;margin:16px 0 0">Keep this page private. Anyone who can scan the QR can link a WhatsApp account to the bot.</p></main></body></html>`;
+      res.writeHead(200, {'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
+      res.end(html);
+      return;
+    }
+    if (url.pathname === '/qr-image') {
+      if (QR_VIEW_KEY && url.searchParams.get('key') !== QR_VIEW_KEY) {
+        res.writeHead(403, {'content-type':'text/plain','cache-control':'no-store'});
+        res.end('Forbidden');
+        return;
+      }
+      if (!fs.existsSync(QR_IMAGE_FILE)) {
+        res.writeHead(404, {'content-type':'text/plain','cache-control':'no-store'});
+        res.end('QR not available');
+        return;
+      }
+      res.writeHead(200, {'content-type':'image/png','cache-control':'no-store','x-content-type-options':'nosniff'});
+      fs.createReadStream(QR_IMAGE_FILE).pipe(res);
       return;
     }
     res.writeHead(404, {'content-type':'application/json'});
@@ -317,7 +350,7 @@ async function start(){
         fs.mkdirSync(path.dirname(QR_IMAGE_FILE), { recursive: true });
         await QRCode.toFile(QR_IMAGE_FILE, qr, { type:'png', width:900, margin:4, errorCorrectionLevel:'M' });
         logger.info({file:QR_IMAGE_FILE}, 'Full-size WhatsApp QR image saved');
-        console.log(`\nFULL-SIZE QR IMAGE SAVED: ${QR_IMAGE_FILE}\nOpen this file in HOKAS File Manager and scan it from your phone.`);
+        console.log(`\nFULL-SIZE QR IMAGE SAVED: ${QR_IMAGE_FILE}\nOpen https://YOUR-ABASTHAN-DOMAIN/qr in a browser and scan it from your phone.`);
       } catch(err) {
         logger.warn({err:String(err)}, 'Could not save QR image');
       }
