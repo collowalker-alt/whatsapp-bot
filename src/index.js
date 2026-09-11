@@ -169,7 +169,7 @@ async function askAI(question, context='') {
   finally { clearTimeout(timer); }
 }
 
-async function getGroup(sock, jid) { const metadata=await sock.groupMetadata(jid); return { metadata, admins:new Set(metadata.participants.filter(isAdmin).map(p=>p.id)), botIsAdmin:metadata.participants.some(p=>isAdmin(p)&&numberOf(p.id)===numberOf(sock.user?.id||'')) }; }
+function jidMatches(a='',b=''){ if(!a||!b) return false; if(a===b) return true; const na=numberOf(a), nb=numberOf(b); return !!na && !!nb && na===nb; } async function getGroup(sock, jid) { const metadata=await sock.groupMetadata(jid); const selfIds=[sock.user?.id,sock.user?.lid,sock.user?.jid,sock.user?.phoneNumber].filter(Boolean); const admins=new Set(metadata.participants.filter(isAdmin).map(p=>p.id)); const botParticipant=metadata.participants.find(p=>isAdmin(p)&&selfIds.some(id=>jidMatches(p.id,id)||p.id===id||p.lid===id)); return { metadata, admins, botIsAdmin:!!botParticipant }; }
 function isOwner(jid) { return OWNER_NUMBERS.has(numberOf(jid)); }
 async function isGroupAdmin(sock, jid, sender) { try { const g=await getGroup(sock,jid); return g.admins.has(sender) || isOwner(sender); } catch { return isOwner(sender); } }
 
@@ -290,7 +290,7 @@ async function answerQuestion(sock,msg) {
 }
 
 async function listGroups(sock) {
-  try { const groups=await sock.groupFetchAllParticipating(); console.log('\n=== NEXORA COMMUNITY BOT: GROUPS ==='); for(const g of Object.values(groups).sort((a,b)=>String(a.subject).localeCompare(String(b.subject)))){const me=g.participants?.find(p=>numberOf(p.id)===numberOf(sock.user?.id||'')); console.log(`${g.subject||'(unnamed)'} -> ${g.id} ${isAdmin(me)?'[BOT ADMIN]':'[BOT NOT ADMIN]'}`);} console.log('======================================\n'); } catch(err){logger.warn({err:String(err)},'Could not list groups');}
+  try { const groups=await sock.groupFetchAllParticipating(); console.log('\n=== NEXORA COMMUNITY BOT: GROUPS ==='); for(const g of Object.values(groups).sort((a,b)=>String(a.subject).localeCompare(String(b.subject)))){const selfIds=[sock.user?.id,sock.user?.lid,sock.user?.jid,sock.user?.phoneNumber].filter(Boolean); const me=g.participants?.find(p=>isAdmin(p)&&selfIds.some(id=>jidMatches(p.id,id)||p.id===id||p.lid===id)); console.log(`${g.subject||'(unnamed)'} -> ${g.id} ${me?'[BOT ADMIN]':'[BOT NOT ADMIN]'}`);} console.log('======================================\n'); } catch(err){logger.warn({err:String(err)},'Could not list groups');}
 }
 
 function startHealthServer() {
